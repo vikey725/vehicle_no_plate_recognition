@@ -12,12 +12,13 @@ from albumentations import (
 )
 from configs.config import ModelConfig
 
+
 class DataProcessor:
     def __init__(self, df):
         image_paths = np.array([os.path.join(ModelConfig.IMG_DIR, image) for image in df["images"].values])
         labels = np.array(df["labels"].values)
         self.classes = list(set([ch for label in labels for ch in label]))
-        self.idx_to_char = {idx + 1: ch for idx, ch in enumerate(self.classes)}
+        self.idx_to_char = {idx : ch for idx, ch in enumerate(self.classes)}
         self.char_to_idx = {v: k for k, v in self.idx_to_char.items()}
         self.train_x, self.val_x, self.train_y, self.val_y = train_test_split(image_paths, labels)
         self.transforms = Compose([
@@ -44,37 +45,60 @@ class DataProcessor:
 
         ], p=0.5)
 
-    def aug_fn(self, image):
+    def aug_train(self, image):
         data = {"image": image}
         aug_data = self.transforms(**data)
         aug_img = aug_data["image"]
         aug_img = tf.cast(aug_img, tf.float32)
-        aug_img = tf.image.resize(aug_img, size=[ModelConfig.IMG_SIZE, ModelConfig.IMG_SIZE])
+        aug_img = tf.image.resize(aug_img, size=[ModelConfig.IMG_HEIGHT, ModelConfig.IMG_WIDTH])
+        aug_img = tf.transpose(aug_img, perm=[1, 0, 2])
+        return aug_img
+
+    def aug_val(self, image):
+        aug_img = tf.cast(image, tf.float32)
+        aug_img = tf.image.resize(aug_img, size=[ModelConfig.IMG_HEIGHT, ModelConfig.IMG_WIDTH])
+        aug_img = tf.transpose(aug_img, perm=[1, 0, 2])
         return aug_img
 
     def get_encoded_label(self, label):
         label = label.decode("utf-8")
         return np.array([self.char_to_idx[ch] for ch in label])
 
-    def get_data(self, image_path, label):
+    def get_train_data(self, image_path, label):
         print(image_path)
         image = tf.io.read_file(image_path)
         image = tf.io.decode_png(image, channels=3)
         # normalize
         image = tf.image.convert_image_dtype(image, tf.float32)
-        image = tf.image.resize(image, [ModelConfig.IMG_SIZE, ModelConfig.IMG_SIZE])
+        image = tf.image.resize(image, [ModelConfig.IMG_HEIGHT, ModelConfig.IMG_WIDTH])
 
         # Apply augmentation
-        image = tf.numpy_function(func=self.aug_fn, inp=[image], Tout=tf.float32)
-
+        image = tf.numpy_function(func=self.aug_train, inp=[image], Tout=tf.float32)
+        # image.set_shape((None, ModelConfig.IMG_HEIGHT, ModelConfig.IMG_WIDTH, 3))
         # img dim: (height, width, depth) -> (width, height, depth)
-        image = tf.transpose(image, perm=[1, 0, 2])
 
         label = tf.numpy_function(func=self.get_encoded_label, inp=[label], Tout=tf.int64)
         print("done")
 
         return {"images": image, "labels": label}
 
+    def get_val_data(self, image_path, label):
+        print(image_path)
+        image = tf.io.read_file(image_path)
+        image = tf.io.decode_png(image, channels=3)
+        # normalize
+        image = tf.image.convert_image_dtype(image, tf.float32)
+        image = tf.image.resize(image, [ModelConfig.IMG_HEIGHT, ModelConfig.IMG_WIDTH])
+
+        # Apply augmentation
+        image = tf.numpy_function(func=self.aug_val, inp=[image], Tout=tf.float32)
+        # image.set_shape((None, ModelConfig.IMG_HEIGHT, ModelConfig.IMG_WIDTH, 3))
+        # img dim: (height, width, depth) -> (width, height, depth)
+
+        label = tf.numpy_function(func=self.get_encoded_label, inp=[label], Tout=tf.int64)
+        print("done")
+
+        return {"images": image, "labels": label}
 
     def get_batches(self):
         train_data = tf.data.Dataset.from_tensor_slices((self.train_x, self.train_y))
@@ -82,15 +106,15 @@ class DataProcessor:
 
         train_data = (
             train_data.map(
-                self.get_data, num_parallel_calls=tf.data.experimental.AUTOTUNE
+                self.get_train_data, num_parallel_calls=tf.data.experimental.AUTOTUNE
             )
-            .batch(ModelConfig.BATCH_SIZE)
-            .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+                .batch(ModelConfig.BATCH_SIZE)
+                .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
         )
 
         val_data = (
             val_data.map(
-                self.get_data, num_parallel_calls=tf.data.experimental.AUTOTUNE
+                self.get_val_data, num_parallel_calls=tf.data.experimental.AUTOTUNE
             )
                 .batch(ModelConfig.BATCH_SIZE)
                 .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
@@ -110,6 +134,9 @@ if __name__ == "__main__":
     for batch in train_data.take(1):
         images = batch["images"]
         labels = batch["labels"]
+        print(images.shape)
+        print(labels.shape)
+        print(type(images))
         for i in range(16):
             img = (images[i] * 255).numpy().astype("uint8")
 
