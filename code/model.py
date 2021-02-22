@@ -77,6 +77,7 @@ def get_tl_model(num_classes):
     model = tf.keras.layers.Reshape(target_shape=(28, 28 * 512), name="reshape")(model)
 
     model = tf.keras.layers.Dense(64, activation="relu", name="Dense_1")(model)
+    model = tf.keras.layers.Dropout(0.2)(model)
 
     model = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True, dropout=0.25))(model)
     model = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True, dropout=0.25))(model)
