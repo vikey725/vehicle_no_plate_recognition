@@ -15,12 +15,16 @@ from configs.config import ModelConfig
 
 class DataProcessor:
     def __init__(self, df):
-        image_paths = np.array([os.path.join(ModelConfig.IMG_DIR, image) for image in df["images"].values])
         labels = np.array(df["labels"].values)
-        self.classes = list(set([ch for label in labels for ch in label]))
+        train_df = df[df["dtype"] == "train"]
+        val_df = df[df["dtype"] == "test"]
+        self.classes = sorted(list(set([ch for label in labels for ch in label])))
         self.idx_to_char = {idx : ch for idx, ch in enumerate(self.classes)}
         self.char_to_idx = {v: k for k, v in self.idx_to_char.items()}
-        self.train_x, self.val_x, self.train_y, self.val_y = train_test_split(image_paths, labels)
+        self.train_x = train_df["images"].values
+        self.train_y = train_df["labels"].values
+        self.val_x = val_df["images"].values
+        self.val_y = val_df["labels"].values
         self.transforms = Compose([
             Rotate(limit=10),
             OneOf([
@@ -64,8 +68,7 @@ class DataProcessor:
         label = label.decode("utf-8")
         return np.array([self.char_to_idx[ch] for ch in label])
 
-    def get_train_data(self, image_path, label):
-        print(image_path)
+    def get_train_data(self, image_path, label, type=None):
         image = tf.io.read_file(image_path)
         image = tf.io.decode_png(image, channels=3)
         # normalize
@@ -80,10 +83,9 @@ class DataProcessor:
         label = tf.numpy_function(func=self.get_encoded_label, inp=[label], Tout=tf.int64)
         print("done")
 
-        return {"images": image, "labels": label}
+        return {"inputs": image, "labels": label}
 
     def get_val_data(self, image_path, label):
-        print(image_path)
         image = tf.io.read_file(image_path)
         image = tf.io.decode_png(image, channels=3)
         # normalize
@@ -98,7 +100,7 @@ class DataProcessor:
         label = tf.numpy_function(func=self.get_encoded_label, inp=[label], Tout=tf.int64)
         print("done")
 
-        return {"images": image, "labels": label}
+        return {"inputs": image, "labels": label}
 
     def get_batches(self):
         train_data = tf.data.Dataset.from_tensor_slices((self.train_x, self.train_y))
@@ -108,7 +110,7 @@ class DataProcessor:
             train_data.map(
                 self.get_train_data, num_parallel_calls=tf.data.experimental.AUTOTUNE
             )
-                .batch(ModelConfig.BATCH_SIZE)
+                .batch(ModelConfig.TRAIN_BATCH_SIZE)
                 .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
         )
 
@@ -116,7 +118,7 @@ class DataProcessor:
             val_data.map(
                 self.get_val_data, num_parallel_calls=tf.data.experimental.AUTOTUNE
             )
-                .batch(ModelConfig.BATCH_SIZE)
+                .batch(ModelConfig.VAL_BATCH_SIZE)
                 .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
         )
 
@@ -132,7 +134,7 @@ if __name__ == "__main__":
     # check if data is augumented properly or not
     _, ax = plt.subplots(4, 4, figsize=(10, 10))
     for batch in train_data.take(1):
-        images = batch["images"]
+        images = batch["inputs"]
         labels = batch["labels"]
         print(images.shape)
         print(labels.shape)

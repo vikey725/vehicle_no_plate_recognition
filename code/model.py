@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.applications.vgg19 import VGG19
+from tensorflow.keras.applications.resnet50 import ResNet50
 from tensorflow.keras import layers
 
 from configs.config import ModelConfig
@@ -29,9 +30,9 @@ class CTCLayer(tf.keras.layers.Layer):
         # At test time, just return the computed predictions
         return y_pred
 
-def get_model(num_classes):
+def get_model(num_classes, type=None):
     inp = layers.Input(
-        shape=(ModelConfig.IMG_WIDTH, ModelConfig.IMG_HEIGHT, 3), name="images", dtype="float32"
+        shape=(ModelConfig.IMG_WIDTH, ModelConfig.IMG_HEIGHT, 3), name="inputs", dtype="float32"
     )
     labels = layers.Input(name="labels", shape=(None,), dtype="float32")
 
@@ -60,4 +61,38 @@ def get_model(num_classes):
 
     return final_model
 
+def get_tl_model(num_classes):
+    labels = tf.keras.layers.Input(name="labels", shape=(None,), dtype="float32")
+    base_model = VGG19(weights="imagenet", include_top=False,
+                       input_tensor=tf.keras.layers.Input(shape=(224, 224, 3)))
 
+    base_model.get_layer("input_1")._name = "inputs"
+
+    # EXP 1- VGG16: block4_pool
+    # model = base_model.get_layer('block4_pool').output
+    # model = tf.keras.layers.Reshape(target_shape=(14, 14 * 512), name="reshape")(model)
+
+    #Exp 2- VGG16: block4_conv4
+    model = base_model.get_layer('block4_conv4').output
+    model = tf.keras.layers.Reshape(target_shape=(28, 28 * 512), name="reshape")(model)
+
+    model = tf.keras.layers.Dense(64, activation="relu", name="Dense_1")(model)
+
+    model = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True, dropout=0.25))(model)
+    model = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True, dropout=0.25))(model)
+
+    model = tf.keras.layers.Dense(num_classes, activation="softmax", name="dense_2")(model)
+
+    output = CTCLayer(name="ctc_loss")(labels, model)
+
+    final_model = Model(
+        inputs=[base_model.input, labels], outputs=output, name="final_model"
+    )
+
+    for layer in base_model.layers:
+        layer.trainable = False
+
+    final_model.compile(optimizer=tf.keras.optimizers.Adam())
+    print(final_model.summary())
+
+    return final_model
