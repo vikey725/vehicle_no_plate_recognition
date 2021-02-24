@@ -7,13 +7,23 @@ The model includes a pretrained VGG19 as feature_extractor => dense(relu) => bi-
 The dataset has cropped RGB image liscence plate and the vehicle_no as output. the dataset.csv file has info related to data. Some of the outputs of the model is given below:
 ![image](https://github.com/vikey725/vehicale_no_plate_recognition/blob/main/saved_img/pred_2.png)
 
+# Dependencies
+- tensorflow 2.0
+- numpy
+- pandas
+- matplotlib
+- sklearn
+- albumentations
+- Levenshtein
+
 # Training
 
-  ```python -m code.train train```
+  ```python -m code.engine train```
 
 # Testing
 
-  ```python -m code.train```
+  ```python -m code.engine```
+
   
 # Accuracy
 
