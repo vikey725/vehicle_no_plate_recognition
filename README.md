@@ -1,4 +1,4 @@
-# vehicale_no_plate_recognition using Pretrained VGG Model
+# vehicle_no_plate_recognition using Pretrained VGG Model
 
 The model includes a pretrained VGG19 as feature_extractor => dense(relu) => bi-lstms => dense(softmax) and [CTC loss](https://towardsdatascience.com/intuitively-understanding-connectionist-temporal-classification-3797e43a86c) layer.
 
