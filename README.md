@@ -1,4 +1,4 @@
-# vehicle_no_plate_recognition using Pretrained VGG Model
+# vehicle no plate recognition using Pretrained VGG Model
 
 The model includes a pretrained VGG19 as feature_extractor => dense(relu) => bi-lstms => dense(softmax) and [CTC loss](https://towardsdatascience.com/intuitively-understanding-connectionist-temporal-classification-3797e43a86c) layer.
 
@@ -29,7 +29,3 @@ The dataset has cropped RGB image liscence plate and the vehicle_no as output. t
 
 The word accuracy is 75.38 %
 The char accuracy is 94.83 %
-
-# Reference
-
-[https://keras.io/examples/vision/captcha_ocr/](https://keras.io/examples/vision/captcha_ocr/)
